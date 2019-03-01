@@ -1,0 +1,232 @@
+---
+title: "Logistic IRT Models"
+author: "Julie Wood"
+date: "November 12, 2017"
+output:
+  html_document:
+    df_print: kable
+    mathjax: default
+    number_sections: yes
+    theme: spacelab
+    highlight: tango
+    toc: yes
+    toc_float: true
+---
+
+#Overview:
+Item response theory (IRT) is a paradigm for investigating the relationship between an individual's response to a single test item and their performance on an overall measure of the ability or trait that item was intended to measure. Many models exist in the IRT field for evaulating how well an item captures an underlying latent trait, but some of the most popular IRT models are *logistic IRT models*. This tutorial will introduce you to *1-parameter, 2-parameter, and 3-parameter logistic IRT models*.
+
+For each model you will create:
+* Summary plots
+* Estimate latent ability scores
+* Test the fit of the model
+
+#1-parameter logistic model (1PL)
+
+At the core of all the IRT models presented in this tutorial is the *item response function (IRF)*. The IRF estimates the probability of getting an item "correct" (i.e., $X=1$) as a function of item characteristics and the individual's latent trait/ability level ($\theta$). These item response functions are defined by a logistic curve (i.e., an "S"-shape from 0-1).
+
+The 1PL (also called the *Rasch model*) IRT model describes test items in terms of only one parameter, *item difficulty*, $b$. Item difficulty is simply how hard an item is (how high does the latent trait ability level need to be in order to have a 50% chance of getting the item right?). $b$ is estimated for each item of the test. 
+
+The item response function for the 1PL model is given below:
+
+$$P(X=1|\theta,b)=\frac{e^{(\theta-b)}}{1+e^{(\theta-b)}}$$
+##Step 0: Read in the data
+We will use (simulated) results from N=500 individual taking a 10-item test (V1-V10). Items are coded `1` for correct and `0` for incorrect responses. When we get descriptives of the data, we see that the items differ in terms of the proportion of people who answered correctly, so we expect that we have some differences in item difficulty here.
+```{r message=F}
+library(ltm)
+library(psych)
+irtdat<-read.table("ouirt.dat",header=F)
+head(irtdat)
+describe(irtdat)
+```
+
+##Step 1: Fit the 1PL model
+We fit the 1PL model to our 500 responses to our 10-item test. That is, we estimate item difficulty, $b$ based on how people answered the items.
+```{r}
+PL1.rasch<-rasch(irtdat)
+summary(PL1.rasch)
+```
+Here, we see that all of the difficulty estimates have significant z-values. For example, the difficulty estimate for Item 1 is *b=1.66, z=12.7*. A z-value of greater than 1.65 indicates that the difficulty parameter is significantly greater than zero (item difficulty cannot be negative) at the alpha=0.05 level. Higher difficulty estimates indicate that the item requires a higher level of the latent trait to have a 50% probability of getting the item "correct."
+
+##Step 2: Plot the item characteristic curves of all 10 items
+Item characteristic curves are the logistic curves which result from the fitted Rasch models (e.g., estimated item difficulty, *b*, plugged into the item response function). Latent trait/ability is plotted on the x-axis (higher values represent hight ability). Probability of a "correct" answer ($X=1$) to an item is plotted on the y-axis. 
+```{r}
+plot(PL1.rasch,type=c("ICC"))
+```
+From this plot, we see that item 10 is the most difficult item (it's curve is farthest to the right), and item 5 is the easiest (it's curve is farthest to the left). The same conclusions can be drawn by checking the difficulty estimates above. 
+
+##Step 3: Plot the item information curves for all 10 items, then the whole test
+Item information curves show how much "information" about the latent trait ability an item gives. Mathematically, these are the 1st derivatives of the ICCs. Item information curves peak at the difficulty value (point where the item has the highest discrimination), with less information at ability levels farther from the difficulty estimate. 
+
+Practially speaking, we can see how a very difficult item will provide very little information about persons with low ability (because the item is already too hard), and very easy items will provide little information about persons with high ability levels.
+```{r}
+plot(PL1.rasch,type=c("IIC"))
+```
+  
+Similar to the ICCs, we see that item 10 provides the most information about high ability levels (the peak of its IIC is farthest to the right) and item 5 provides the most information about lower ability levels (the peak of its IIC is farthest to the left).
+We have seen that all ICCs and IICs for the items have the same shape in the 1PL model (i.e., all items are equally good at providing information about the latent trait). In the 2PL and 3PL models, we will see that this does not have to be the case.
+
+Next, we plot the information curve for the whole test. This is simply the sum of the individual IICs above. Ideally, we want a test which provides fairly good covereage of a wide range of latent ability levels. Otherwise, the test is only good at identifying a limited range of ability levels. 
+
+We see that this test provides the most information about slightly-higher-than-average ability levels (the peak is around ability level $\theta=.5$), and less information about very high and very low ability levels.
+```{r}
+plot(PL1.rasch,type=c("IIC"),items=c(0))
+```
+
+##Step 4: Test the fit of the 1PL model
+We run the `item.fit` function to test whether individual items fit the 1PL model.
+```{r}
+item.fit(PL1.rasch,simulate.p.value=T)
+```
+We see from this that items 8, 9, and 10 perhaps do not fit the 1PL model so well (small p-values). This is an indication that we should consider a different IRT model.
+
+##Step 5: Estimate ability scores & plot
+Next, we can take the results of our 1PL model and estimate the latent ability scores of the participants.
+
+We estimate the ability scores with the `factor.scores()` function in the `ltm` package.
+```{r}
+theta.rasch<-ltm::factor.scores(PL1.rasch)
+summary(theta.rasch$score.dat$z1)
+```
+
+We can also plot the density curve of the estimated ability scores:
+```{r}
+plot(theta.rasch)
+```
+  
+We see that the mean of ability scores is around 0, and the standard deviation about 1 (these are by definition-estimated ability scores are standardized). The curve is approximately normal-shaped.
+  
+##Step 6: Test for unidimensionality
+```{r}
+unidimTest(PL1.rasch,irtdat)
+```
+The test is borderline significant at alpha=0.01 (p=0.0198), so unidimensionality (the idea that we're measuring a single trait $\theta$ here) is rejected. Since the 1PL model did not fit very well, we should consider fitting the data to alternative IRT models. The poor fit is perhaps not surprising, given that we know the data were simulated using a 2PL model, and we are not accounting for item differences in discriminability.
+
+#2-parameter logistic (2PL) IRT model
+
+The item response function for the 2-parameter logistic IRT model is:
+$$P(X=1|\theta,a,b)=\frac{e^{a(\theta-b)}}{1+e^{a(\theta-b)}}$$
+The IRF describes the probability that an individual with latent ability level $\theta$ endorses an item ($X=1$) with two item characteristc paramters:  
+1. $b$ is the *item difficulty* (same as 1PL model). Item difficulty is reflected in the position of the item characteristic curve along the x-axis (latent trait ablity).  
+2. $a$ is the *item discriminability*. Discriminability is how well an item is able to discriminate between persons with different ability levels. Item discriminability is reflected in the steepness of the slope of the item characteristic curves.  
+
+##Step 1: Fit the 2PL model
+We fit the 2PL model with `ltm`.
+```{r}
+PL2.rasch<-ltm(irtdat~z1)
+summary(PL2.rasch)
+```
+All of the item characteristic estimates (difficultly and discrimination) have significant z-values (i.e. greater than 1.65, against the null hypothesis that parameters = 0). For example, for Item 1, the estimated difficulty is $b=1.63 (z=8.50)$ and the estimated discriminability is $a=1.42 (z=6.13)$. Higher difficulty values indicate that the item is harder (i.e., higher latent ability to answer correctly); higher discriminability estimates indicate that the item has better ability to tell the difference between different levels of latent ability. These will both be made clearer in the ICC plots.
+
+##Step 2: Plot the item characteristic curves of all 10 items
+```{r}
+plot(PL2.rasch,type=c("ICC"))
+```
+  
+Unlike the ICCs for the 1PL model, the ICCs for the 2PL model do not all have the same shape. Item curves which are more "spread out" indicate lower discriminability (i.e., that individuals of a range of ability levels have some probability of getting the item correct). Compare this to an item with high discriminability (steep slope): for this item, we have a better estimate of the individual's latent ability based on whether they got the question right or wrong.
+
+*A note about difficulty*: Because of the differing slopes, the rank-order of item difficulty changes across different latent ability levels. We can see that item 10 is generally still the most difficult item (i.e. lowest probability of getting correct for most latent trait values, up until about $\theta=2$). Items 5 and 6 are roughly the easiest, switching in the rank order somewhere around $\theta=-.25$.
+
+##Step 3: Plot the item information curves for all 10 items, then the whole test
+```{r}
+plot(PL2.rasch,type=c("IIC"))
+```
+  
+The item IICs demonstrate that some items provide more information about latent ability for different ability levels. The higher the item discriminability estimate, the more information an item provides about ability levels around the point where there is a 50% chance of getting the item right (i.e. the steepest point in the ICC slope) For example, item 10 (red) clearly provides the most information at high ability levels, around $\theta=2$, but almost no information about low ability levels (< 0) because the item is already too hard for those participants. In contrast, item 7 (yellow), which has low discriminability, doesn't give very much information overall, but covers a wide range of ability levels.
+
+Next, we plot the item information curve for the whole test. This is the sum of all the item IICs above.
+```{r}
+plot(PL2.rasch,type=c("IIC"),items=c(0))
+```
+  
+The IIC for the whole test shows that the test provides the most information for slightly-higher-than average ability levels (about $\theta=1$), but does not provide much information about extremely high or low ability levels.
+
+##Step 4: Test the fit of the 2PL model
+Next, we test how well the 2PL model fits the data.
+```{r}
+item.fit(PL2.rasch,simulate.p.value=T)
+```
+All of the items fit the 2PL model (p<0.05). This is not surprising, given that the data were simulated with a 2PL model.
+
+##Step 5: Estimate ability scores & plot
+Estimate the individual latent ability scores using the `factor.scores()` function in the `ltm` library.
+```{r}
+theta.rasch<-ltm::factor.scores(PL2.rasch)
+summary(theta.rasch$score.dat$z1)
+```
+
+Plot the density curve of the estimated ability scores
+```{r}
+plot(theta.rasch)
+```
+  
+We see that the estimated ability scores are roughly normally distributed, with mean 0 and SD 1. This is by definition of the 2PL model (i.e., ability estimates are standardized).
+
+##Step 6: Test for unidimensionality
+We test for unidimensionality (i.e. is there a single trait $\theta$ being measured here?)
+```{r}
+unidimTest(PL2.rasch,irtdat)
+```
+The test is not significant (p=0.0396), hence unidimensionality is not rejected. This is not surprising, given that the data were simulated with a 2PL model.
+
+#3-Parameter logistic IRT model
+The item response function for the 3-parameter logistic IRT model is:
+$$P(X=1|\theta,a,b,c)=c+(1-c)~\frac{e^{a(\theta-b)}}{1+e^{a(\theta-b)}}$$
+The IRF describes the probability that an individual with latent ability level $\theta$ endorses an item with three item characteristc paramters:  
+1. $b$ is the *item difficulty*. This is reflected in the position of the item characteristic curve along the x-axis (i.e. latent trait)  
+2. $a$ is the *item discrimination*. This is reflected in the steepness of the slope of the ICC.  
+3. $c$ is a parameter for *guessing*. Under this model, individuals with zero ability have a nonzero chance of endorsing any item, just by guessing randomly. The guessing parameter is reflected in the y-intercept (i.e. probability) of the ICC.  
+
+##Step 1: Fit the 3PL model
+We fit the 3PL model with the `tpm` function from the `ltm` package.
+```{r}
+PL3.rasch<-tpm(irtdat)
+summary(PL3.rasch)
+```
+All of the item difficulty and item discriminability parameters have significant z-values.
+Note that most of the guessing parameters have significant z-values (the data was simulated with a 2PL model, so no guessing was systematically built into the data) Items 2 and 4 have significant guessing parameters (z>1.65), probabilities of getting the item correcty by guessing are pretty low (10.6% and 7.9%, respectively). These significant estimates could be due to chance, or some noise in the simulated data.
+
+##Step 2: Plot the item characteristic curves of all 10 items
+```{r}
+plot(PL3.rasch,type=c("ICC"))
+```
+  
+The slopes of the ICCs look very similar to those of the 2PL model. We can see that items 2 and 4 have y-intercepts greater than zero-so even at very low ability levels, there is some chance of getting these items correct (via guessing).
+  
+##Step 3: Plot the item information curves for all 10 items, then the whole test
+```{r}
+plot(PL3.rasch,type=c("IIC"))
+```
+  
+The IICs have changed markedly from the 2PL model. Item 4 now provides the most information about moderate ability levels.
+
+We plot the IIC for the entire test, the sum of the item IICS:
+```{r}
+plot(PL3.rasch,type=c("IIC"),items=c(0))
+```
+  
+The whole-test IIC looks similar to the IICs for the 1PL and 2PL models, providing the most information about moderate ability levels, and less about extreme ability levels.
+
+##Step 4: Estimate ability scores & plot
+We estimate the ability scores with the `factor.scores()` function in the `ltm` package.
+```{r}
+theta.rasch<-ltm::factor.scores(PL3.rasch)
+summary(theta.rasch$score.dat$z1)
+```
+
+We then plot the density curve of the estimated ability scores
+```{r}
+plot(theta.rasch)
+```
+  
+Again we see an approximately normal distribution with mean approximately 0 and standard deviation approximately 1.
+
+##Step 5: Test for unidimensionality
+Last, we test for the unidimensionality of the 3PL model (i.e. is there a single trait $\theta$ being measured here?)
+```{r}
+unidimTest(PL3.rasch,irtdat)
+```
+Unidimensionality is not rejected (p=0.0693). Although the data were simulated under a 2PL model the (small) changes made by the (few) significant guessing parameters were not enough to reject unidimensionality.
+
+#Summary:
+This tutorial has been a brief introduction to logistic IRT models. We have learned how to fit models which describe items in terms of difficulty, discriminability, and correct for guessing. We learned to interpret model parameters graphically in item characteristic curves and item information curves, and learned how to estimate the latent ability scores of test respondents. 
